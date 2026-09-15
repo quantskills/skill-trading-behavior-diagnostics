@@ -1,0 +1,4 @@
+interface:
+  display_name: "交易心理与行为诊断"
+  short_description: "自动整理交易记录，识别四类常见行为偏差并追踪改善趋势"
+  default_prompt: "Use $trading-behavior-diagnostics to analyze my trade history and produce a behavioral diagnosis report."
