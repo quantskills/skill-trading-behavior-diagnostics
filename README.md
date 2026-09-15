@@ -1,54 +1,80 @@
 # 交易心理与行为金融诊断
 
-多数交易工具盯着市场，这个项目改为盯着交易者自己的执行记录。它会自动识别常见券商导出格式，整理成交记录，并检查处置效应、过度交易、追涨杀跌和亏损后放大仓位四类问题。
+这套工具从自己的成交记录入手，检查处置效应、过度交易、追涨杀跌和亏损后放大仓位。它会先整理不同券商的字段，再给出评分、证据、行为画像和改进建议。再次运行时，还可以比较行为变化。
 
-## 已实现的数据入口
+适合个人交易复盘，也适合 PandaAI 或券商平台接入自己的成交数据。报告只描述交易行为，不作心理或医学诊断，也不提供买卖建议。
 
-- PandaAI：已提供 HTTPS 适配契约；服务地址、令牌和账户号齐备后才能启用，当前公开 PandaData 行情接口不包含个人成交记录
-- 老虎证券：接收已经授权的 `tigeropen` 交易客户端
-- 东方财富：接收调用方已经授权的交易客户端
-- 文件：自动识别同花顺、东方财富、富途和通用 CSV/XLSX
+## 能读哪些数据
 
-API 适配器不保存密钥，也不会替用户绕过券商授权。PandaAI 与东方财富个人成交接口尚未获得可验证的正式路径，因此不能算作已打通；文件模式和调用方注入的已授权客户端可以直接使用。具体缺口与配置方式见数据接入说明。
+文件模式可以直接使用，支持 CSV、XLSX 和 XLS。解析器会识别同花顺、东方财富、富途及常见通用字段，不要求先手工改列名。
 
-## 输出内容
+老虎证券可传入已经授权的 `tigeropen` 客户端。东方财富可传入账户已有权限的交易客户端。PandaAI 预留了 HTTPS 接入方式，需要服务方提供个人成交接口地址、访问令牌和账户号。公开的 PandaData 行情接口不包含个人成交记录。
 
-每项偏差给出 0–100 分和轻度/中度/重度标记，并附上证据与具体建议。四项结果会汇总成“纪律型、情绪型、激进型、赌徒型”画像。再次运行时可与上一次得分比较。
+接口条件不齐时，使用券商导出文件即可完成完整诊断。详细说明见[数据接入](references/data-sources.md)。
 
-## 快速开始
+## 安装
 
 需要 Python 3.11 或更高版本。
 
 ```powershell
 python -m pip install -r requirements.txt
-python scripts\healthcheck.py --sample data\tonghuashun_demo.csv
+```
+
+先检查本机环境和文件是否可读。
+
+```powershell
+python scripts\healthcheck.py --sample data\trades.csv
+```
+
+## 开始诊断
+
+准备券商导出的成交文件后运行下面的命令。
+
+```powershell
+python scripts\behavior_tool.py `
+  --trades data\trades.csv `
+  --output outputs\behavior
+```
+
+若有逐日行情收益，可以一并传入。这样才能判断买入前是否连续上涨、卖出前是否连续下跌。
+
+```powershell
+python scripts\behavior_tool.py `
+  --trades data\trades.csv `
+  --market data\market_returns.csv `
+  --average-equity 500000 `
+  --output outputs\behavior
+```
+
+`--average-equity` 填写统计期间的平均账户净值。省略时仍可运行，但换手率会使用成交金额代理值，报告会降低该项证据等级。
+
+## 输出文件
+
+- `behavior_report.md` 提供四项诊断、行为画像和改进建议
+- `diagnosis.json` 便于其他程序读取结果
+- `normalized_trades.csv` 保存清洗后的成交记录，默认删除账户号和成交号
+
+如需追踪多次诊断的变化，可添加 `--history .behavior-history/history.jsonl`。程序默认不跨次保存历史。
+
+## 试运行
+
+仓库带有演示数据生成器，可用它检查完整流程。
+
+```powershell
 python scripts\make_demo_data.py --directory data
 python scripts\behavior_tool.py `
   --trades data\tonghuashun_demo.csv `
   --market data\market_returns.csv `
-  --output outputs\behavior
+  --output outputs\demo
 ```
 
-`--market` 可省略，但届时追涨杀跌只能标记为证据不足。程序默认不保存跨次历史；希望追踪变化时，显式添加 `--history .behavior-history/history.jsonl`。标准化成交表默认删除账户号和成交号，只有明确添加 `--include-identifiers` 才保留。
+评分方法和样本要求见[诊断方法](references/methodology.md)。
 
-## 标准成交字段
-
-| 字段 | 含义 |
-|---|---|
-| `timestamp` | 成交时间 |
-| `symbol` | 证券代码 |
-| `side` | `BUY` 或 `SELL` |
-| `quantity` | 成交数量 |
-| `price` | 成交价格 |
-| `fee` | 手续费，可选 |
-
-详细字段映射见 [数据接入说明](references/data-sources.md)。算法定义见 [诊断方法](references/methodology.md)。
-
-## 验证
+## 开发检查
 
 ```powershell
 python -m pytest -q
 python -m compileall -q scripts tests
 ```
 
-本项目只提供个人交易复盘，不构成投资建议或心理诊断。
+本项目采用 GPL-3.0 许可证。
